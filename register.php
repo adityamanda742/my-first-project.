@@ -1,0 +1,97 @@
+<?php
+// Start session management to check if user is already logged in
+session_start();
+// Include the configuration file for database connection
+require_once 'config.php';
+
+// Redirect logged-in users to the index page
+if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true){
+    header("location: index.php");
+    exit;
+}
+
+$username = $password = "";
+$username_err = $password_err = "";
+
+if($_SERVER["REQUEST_METHOD"] == "POST"){
+    
+    // Validate username (check if empty and if already exists)
+    if(empty(trim($_POST["username"]))){
+        $username_err = "Please enter a username.";
+    } else{
+        $sql = "SELECT id FROM users WHERE username = ?";
+        if($stmt = mysqli_prepare($link, $sql)){
+            mysqli_stmt_bind_param($stmt, "s", $param_username);
+            $param_username = trim($_POST["username"]);
+            
+            if(mysqli_stmt_execute($stmt)){
+                mysqli_stmt_store_result($stmt);
+                if(mysqli_stmt_num_rows($stmt) == 1){
+                    $username_err = "This username is already taken.";
+                } else{
+                    $username = trim($_POST["username"]);
+                }
+            }
+            mysqli_stmt_close($stmt);
+        }
+    }
+    
+    // Validate password (check if empty and minimum length)
+    if(empty(trim($_POST["password"]))){
+        $password_err = "Please enter a password.";     
+    } elseif(strlen(trim($_POST["password"])) < 6){
+        $password_err = "Password must have at least 6 characters.";
+    } else{
+        $password = trim($_POST["password"]);
+    }
+    
+    // Check input errors before inserting into database
+    if(empty($username_err) && empty($password_err)){
+        $sql = "INSERT INTO users (username, password) VALUES (?, ?)";
+        
+        if($stmt = mysqli_prepare($link, $sql)){
+            mysqli_stmt_bind_param($stmt, "ss", $param_username, $param_password);
+            
+            $param_username = $username;
+            // Use password_hash() for secure password storage (PASSWORD HASHING)
+            $param_password = password_hash($password, PASSWORD_DEFAULT); 
+            
+            if(mysqli_stmt_execute($stmt)){
+                // Redirect user to login page
+                header("location: login.php");
+            } else{
+                echo "Something went wrong. Please try again later.";
+            }
+            mysqli_stmt_close($stmt);
+        }
+    }
+    mysqli_close($link);
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register</title>
+</head>
+<body>
+    <h2>User Registration</h2>
+    <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
+        <div>
+            <label>Username</label>
+            <input type="text" name="username" value="<?php echo htmlspecialchars($username); ?>">
+            <span><?php echo $username_err; ?></span>
+        </div>    
+        <div>
+            <label>Password</label>
+            <input type="password" name="password">
+            <span><?php echo $password_err; ?></span>
+        </div>
+        <div>
+            <input type="submit" value="Sign Up">
+        </div>
+        <p>Already have an account? <a href="login.php">Login here</a>.</p>
+    </form>
+</body>
+</html>
